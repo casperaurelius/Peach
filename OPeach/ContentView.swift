@@ -95,13 +95,19 @@ enum OpportunityStage: String, CaseIterable {
 
 class OpportunityViewModel: ObservableObject {
     @Published var opportunities = [
-        Opportunity(name: "Acme Inc.", stage: .proposal, value: 100000),
-        Opportunity(name: "Globex Corp.", stage: .qualification, value: 50000),
-        Opportunity(name: "Initech LLC", stage: .prospecting, value: 25000),
-        Opportunity(name: "Umbrella Corp.", stage: .negotiation, value: 75000),
-        Opportunity(name: "Stark Industries", stage: .closedWon, value: 150000),
-    ]
-}
+            Opportunity(name: "Acme Inc.", stage: .proposal, value: 100000),
+            Opportunity(name: "Globex Corp.", stage: .qualification, value: 50000),
+            Opportunity(name: "Initech LLC", stage: .prospecting, value: 25000),
+            Opportunity(name: "Umbrella Corp.", stage: .negotiation, value: 75000),
+            Opportunity(name: "Stark Industries", stage: .closedWon, value: 150000),
+            // New dummy data
+            Opportunity(name: "Cyberdyne Systems", stage: .proposal, value: 200000),
+            Opportunity(name: "Wayne Enterprises", stage: .qualification, value: 150000),
+            Opportunity(name: "Tyrell Corporation", stage: .prospecting, value: 90000),
+            Opportunity(name: "Oscorp Industries", stage: .negotiation, value: 80000),
+            Opportunity(name: "SkyNet", stage: .closedWon, value: 300000),
+        ]
+    }
 struct OpportunityFormView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: OpportunityViewModel
@@ -219,34 +225,166 @@ struct OpportunityRow: View {
 
 
     
-struct Message: Identifiable {
-        let id = UUID()
-        let sender: String
-        let message: String
+struct Group: Identifiable {
+    var id = UUID()
+    var name: String
+    var members: [Contact]
+    var category: String
+}
+class GroupViewModel: ObservableObject {
+    @Published var groups: [Group] = []
+
+    func addGroup(_ group: Group, completion: @escaping (Bool) -> Void) {
+        // Validation for required fields
+        if group.name.isEmpty || group.members.isEmpty {
+            completion(false)
+            return
+        }
+        // Add Group
+        groups.append(group)
+        completion(true)
     }
 
-    struct InboxView: View {
-        let messages = [        Message(sender: "John", message: "Hey, how are you?"),        Message(sender: "Mary", message: "Want to grab lunch today?"),        Message(sender: "Tom", message: "Can you send me the report by EOD?")    ]
-        
-        var body: some View {
-            NavigationView {
-                List(messages) { message in
-                    NavigationLink(destination: Text(message.message)) {
-                        HStack {
-                            Text(message.sender)
-                                .font(.headline)
-                            Spacer()
-                            Text(message.message)
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
+    func deleteGroup(at offsets: IndexSet) {
+        groups.remove(atOffsets: offsets)
+    }
+
+    func updateGroup(_ group: Group) {
+        if let index = groups.firstIndex(where: { $0.id == group.id }) {
+            groups[index] = group
+        }
+    }
+}
+
+struct GroupView: View {
+    @ObservedObject var viewModel = GroupViewModel()
+    @State private var showingAddGroupSheet = false
+    @State private var newGroupName = ""
+    @State private var newGroupMembers = [Contact]()
+    @State private var newGroupCategory = ""
+    @State private var errorMessage = ""
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(viewModel.groups) { group in
+                    NavigationLink(destination: GroupDetailView(group: $viewModel.groups[viewModel.groups.firstIndex(where: { $0.id == group.id })!])) {
+                        Text(group.name)
                     }
                 }
-                .navigationBarTitle(Text("Inbox"))
+                .onDelete(perform: viewModel.deleteGroup)
+            }
+            .navigationBarTitle("Groups")
+            .navigationBarItems(trailing: Button(action: { showingAddGroupSheet = true }) { Image(systemName: "plus") })
+            .sheet(isPresented: $showingAddGroupSheet) {
+                VStack {
+                    Text("Add Group")
+                        .font(.headline)
+                        .padding()
+                    Divider()
+                    TextField("Name", text: $newGroupName)
+                        .padding()
+                    TextField("Category", text: $newGroupCategory)
+                        .padding()
+                    // UI for adding/removing contacts to the newGroupMembers goes here
+                    ContactPicker(selectedContacts: $newGroupMembers)
+                    Button("Add Group") {
+                        let newGroup = Group(name: newGroupName, members: newGroupMembers, category: newGroupCategory)
+                        viewModel.addGroup(newGroup) { success in
+                            if success {
+                                showingAddGroupSheet = false
+                                errorMessage = ""
+                                newGroupName = ""
+                                newGroupMembers = []
+                                newGroupCategory = ""
+                            } else {
+                                errorMessage = "Could not add group. Please make sure all fields are filled."
+                            }
+                        }
+                    }
+                    .padding()
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .padding()
+                        Button("OK") {
+                            errorMessage = ""
+                        }
+                        .padding()
+                    }
+                }
             }
         }
     }
-    
+}
+
+
+
+struct GroupDetailView: View {
+    @Binding var group: Group
+
+    var body: some View {
+        List {
+            Section(header: Text("Group Info")) {
+                Text("Name: \(group.name)")
+                Text("Category: \(group.category)")
+            }
+
+            Section(header: Text("Members")) {
+                ForEach(group.members) { member in
+                    VStack(alignment: .leading) {
+                        Text("Name: \(member.name)")
+                        Text("Phone: \(member.phoneNumber)")
+                        Text("Email: \(member.email)")
+                        Text("Category: \(member.category)")
+                    }
+                    .padding(.vertical)
+                }
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Group Details")
+    }
+}
+
+struct ContactPicker: View {
+    @Binding var selectedContacts: [Contact]
+    // Assume you have a list of existing contacts from where you can select
+    var availableContacts: [Contact] = [
+        // Placeholder data
+        Contact(name: "John Doe", phoneNumber: "123-456-7890", email: "john.doe@example.com", category: "Friends"),
+        Contact(name: "Jane Doe", phoneNumber: "123-456-7891", email: "jane.doe@example.com", category: "Family"),
+        // more contacts here
+    ]
+
+    var body: some View {
+        VStack {
+            List {
+                ForEach(availableContacts) { contact in
+                    HStack {
+                        Text(contact.name)
+                        Spacer()
+                        if selectedContacts.contains(where: { $0.id == contact.id }) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if let index = selectedContacts.firstIndex(where: { $0.id == contact.id }) {
+                            selectedContacts.remove(at: index)
+                        } else {
+                            selectedContacts.append(contact)
+                        }
+                    }
+                }
+            }
+            .listStyle(PlainListStyle())
+        }
+    }
+}
+
+
+
 struct Reminder: Identifiable {
     var id = UUID()
     var title: String
@@ -360,6 +498,7 @@ struct Contact: Identifiable {
     var phoneNumber: String
     var email: String
     var category: String
+    var opportunity: Opportunity?
 }
 enum Category: String, CaseIterable {
     case personal
@@ -399,6 +538,7 @@ class ContactViewModel: ObservableObject {
 
 struct ContactsView: View {
     @ObservedObject var viewModel = ContactViewModel()
+    @ObservedObject var opportunityViewModel = OpportunityViewModel() // new instance
     @State private var showingAddContactSheet = false
     @State private var newContactName = ""
     @State private var newContactPhone = ""
@@ -410,9 +550,9 @@ struct ContactsView: View {
             List {
 //                SearchBar(text: $newContactName)
                 ForEach(viewModel.contacts) { contact in
-                    NavigationLink(destination: ContactDetailView(contact: $viewModel.contacts[viewModel.contacts.firstIndex(where: { $0.id == contact.id })!])) {
-                        Text(contact.name)
-                    }
+                    NavigationLink(destination: ContactDetailView(contact: $viewModel.contacts[viewModel.contacts.firstIndex(where: { $0.id == contact.id })!], opportunityViewModel: opportunityViewModel)) {
+                           Text(contact.name)
+                       }
                 }
                 .onDelete(perform: viewModel.deleteContact)
             }
@@ -454,19 +594,33 @@ struct ContactsView: View {
 
 struct ContactDetailView: View {
     @Binding var contact: Contact
-
+    @ObservedObject var opportunityViewModel: OpportunityViewModel
+    
     var body: some View {
         Form {
-            Section {
-                Text("Name: \(contact.name)")
-                Text("Phone: \(contact.phoneNumber)")
-                Text("Email: \(contact.email)")
-                Text("Category: \(contact.category)")
+                    Section {
+                        Text("Name: \(contact.name)")
+                        Text("Phone: \(contact.phoneNumber)")
+                        Text("Email: \(contact.email)")
+                        Text("Category: \(contact.category)")
+                        
+                        if let opportunity = contact.opportunity {
+                            NavigationLink(destination: OpportunityDetailView(opportunity: .constant(opportunity))) {
+                                Text("Opportunity: \(opportunity.name)")
+                            }
+                        } else {
+                            Button("Convert to Opportunity") {
+                                let newOpportunity = Opportunity(name: contact.name, stage: .prospecting, value: 10000)
+                                opportunityViewModel.opportunities.append(newOpportunity)
+                                contact.opportunity = newOpportunity
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Contact Details")
             }
         }
-        .navigationTitle("Contact Details")
-    }
-}
+
 
 
 
@@ -488,10 +642,10 @@ struct ContentView: View {
                         Image(systemName: "person.fill")
                         Text("Contacts")
                     }
-                InboxView()
+                GroupView()
                     .tabItem {
-                        Image(systemName: "tray")
-                        Text("Inbox")
+                        Image(systemName: "person.3.fill")
+                        Text("Group")
                     }
                 RemindersView()
                     .tabItem {
@@ -502,9 +656,9 @@ struct ContentView: View {
             }
         }
     }
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView(viewModel: ContactViewModel())
-    }
-}
+//
+//struct ContentView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        ContentView(viewModel: ContactViewModel())
+//    }
+//}
