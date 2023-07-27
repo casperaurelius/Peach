@@ -264,12 +264,16 @@ struct GroupView: View {
     @State private var newGroupCategory = ""
     @State private var errorMessage = ""
 
+    var sortedGroups: [Group] {
+            viewModel.groups.sorted { $0.name < $1.name }
+        }
     var body: some View {
         NavigationView {
             List {
-                ForEach(viewModel.groups) { group in
-                    NavigationLink(destination: GroupDetailView(group: $viewModel.groups[viewModel.groups.firstIndex(where: { $0.id == group.id })!])) {
-                        Text(group.name)
+                ForEach(sortedGroups) { group in
+                                    NavigationLink(destination: GroupDetailView(group: $viewModel.groups[viewModel.groups.firstIndex(where: { $0.id == group.id })!])) {
+                                        Text(group.name)
+
                     }
                 }
                 .onDelete(perform: viewModel.deleteGroup)
@@ -303,14 +307,11 @@ struct GroupView: View {
                         }
                     }
                     .padding()
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .padding()
-                        Button("OK") {
-                            errorMessage = ""
-                        }
-                        .padding()
+                                        .disabled(newGroupName.isEmpty || newGroupMembers.isEmpty || newGroupCategory.isEmpty)
+                                        if newGroupName.isEmpty || newGroupMembers.isEmpty || newGroupCategory.isEmpty {
+                                            Text("Please fill in all fields and select at least one member.")
+                                                .foregroundColor(.red)
+                                                .padding()
                     }
                 }
             }
@@ -324,62 +325,80 @@ struct GroupDetailView: View {
     @Binding var group: Group
 
     var body: some View {
-        List {
-            Section(header: Text("Group Info")) {
-                Text("Name: \(group.name)")
+        Form {
+            Section {
+                Text("Group Name: \(group.name)")
                 Text("Category: \(group.category)")
-            }
-
-            Section(header: Text("Members")) {
+                
                 ForEach(group.members) { member in
-                    VStack(alignment: .leading) {
-                        Text("Name: \(member.name)")
-                        Text("Phone: \(member.phoneNumber)")
-                        Text("Email: \(member.email)")
-                        Text("Category: \(member.category)")
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Member Name: \(member.name)")
+                            Text("Member Phone: \(member.phoneNumber)")
+                            Text("Member Email: \(member.email)")
+                            Text("Member Category: \(member.category)")
+                        }
+                        Spacer()
+                        Button(action: { removeContact(member) }) {
+                            Image(systemName: "minus.circle")
+                                .foregroundColor(.red)
+                        }
                     }
-                    .padding(.vertical)
                 }
             }
         }
-        .listStyle(InsetGroupedListStyle())
         .navigationTitle("Group Details")
+    }
+
+    private func removeContact(_ contact: Contact) {
+        if let index = group.members.firstIndex(where: { $0.id == contact.id }) {
+            group.members.remove(at: index)
+        }
     }
 }
 
 struct ContactPicker: View {
+    @ObservedObject var contactViewModel = ContactViewModel()
     @Binding var selectedContacts: [Contact]
-    // Assume you have a list of existing contacts from where you can select
-    var availableContacts: [Contact] = [
-        // Placeholder data
-        Contact(name: "John Doe", phoneNumber: "123-456-7890", email: "john.doe@example.com", category: "Friends"),
-        Contact(name: "Jane Doe", phoneNumber: "123-456-7891", email: "jane.doe@example.com", category: "Family"),
-        // more contacts here
-    ]
 
     var body: some View {
-        VStack {
-            List {
-                ForEach(availableContacts) { contact in
-                    HStack {
-                        Text(contact.name)
-                        Spacer()
-                        if selectedContacts.contains(where: { $0.id == contact.id }) {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if let index = selectedContacts.firstIndex(where: { $0.id == contact.id }) {
-                            selectedContacts.remove(at: index)
-                        } else {
-                            selectedContacts.append(contact)
-                        }
-                    }
-                }
+        List {
+            ForEach(contactViewModel.contacts) { contact in
+                ContactRow(contact: contact, selectedContacts: $selectedContacts)
             }
-            .listStyle(PlainListStyle())
         }
+    }
+}
+
+struct ContactRow: View {
+    var contact: Contact
+    @Binding var selectedContacts: [Contact]
+
+    var body: some View {
+        HStack {
+            Text(contact.name)
+            Spacer()
+            if isSelected() {
+                Image(systemName: "checkmark")
+                    .foregroundColor(.blue)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelected() {
+                // remove contact if it is already selected
+                if let index = selectedContacts.firstIndex(where: { $0.id == contact.id }) {
+                    selectedContacts.remove(at: index)
+                }
+            } else {
+                // add contact if it is not already selected
+                selectedContacts.append(contact)
+            }
+        }
+    }
+
+    private func isSelected() -> Bool {
+        selectedContacts.contains(where: { $0.id == contact.id })
     }
 }
 
